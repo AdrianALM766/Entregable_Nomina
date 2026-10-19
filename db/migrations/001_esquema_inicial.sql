@@ -1,6 +1,8 @@
 -- db/migrations/001_esquema_inicial.sql
 -- Creación física del esquema de base de datos para el Portal de Nómina (MariaDB / MySQL)
-
+-- Crear la base de datos si no existe y seleccionarla
+CREATE DATABASE IF NOT EXISTS nomina_db;
+USE nomina_db;
 -- 1. Tabla de Usuarios (Credenciales del Portal)
 CREATE TABLE usuarios (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -45,3 +47,39 @@ CREATE INDEX idx_usuarios_cedula ON usuarios(cedula);
 
 -- Índice compuesto en desprendibles para agilizar las búsquedas quincenales por empleado
 CREATE INDEX idx_desprendibles_usuario_periodo ON desprendibles(usuario_id, periodo_quincena);
+
+
+-- -- 1. Insertar empleada
+-- INSERT INTO usuarios (cedula, nombre, pin_hash, rol) 
+-- VALUES ('12345678', 'Luz Dary Osorno', 'hash_pin_demo', 'empleado');
+
+-- -- 2. Insertar desprendible (Quincena del 1 al 15 de octubre de 2026, devengado 1.423.500)
+-- INSERT INTO desprendibles (usuario_id, periodo_quincena, fecha_pago, monto_neto, ruta_pdf) 
+-- VALUES (1, '2026-10-Q1', '2026-10-15', 1423500.00, '/pdfs/luz_dary_2026_10_Q1.pdf');
+
+-- SELECT u.nombre, u.cedula, d.periodo_quincena, d.monto_neto, d.ruta_pdf
+-- FROM desprendibles d
+-- JOIN usuarios u ON d.usuario_id = u.id
+-- WHERE d.periodo_quincena = '2026-10-Q1'
+--   AND u.activo = TRUE
+--   AND d.activo = TRUE;
+
+-- Nueva tabla intermedia
+-- CREATE TABLE contratos (
+--     id INT AUTO_INCREMENT PRIMARY KEY,
+--     usuario_id INT NOT NULL,
+--     tipo_contrato VARCHAR(50) NOT NULL, -- 'Planta', 'Temporal'
+--     activo BOOLEAN NOT NULL DEFAULT TRUE,
+--     CONSTRAINT fk_contratos_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+-- );
+
+-- -- Modificación en desprendibles: ahora cuelga de contrato_id
+-- ALTER TABLE desprendibles DROP FOREIGN KEY fk_desprendibles_usuario;
+-- ALTER TABLE desprendibles DROP INDEX uq_desprendible_periodo;
+
+-- ALTER TABLE desprendibles CHANGE usuario_id contrato_id INT NOT NULL;
+-- ALTER TABLE desprendibles ADD CONSTRAINT fk_desprendibles_contrato FOREIGN KEY (contrato_id) REFERENCES contratos(id);
+-- ALTER TABLE desprendibles ADD CONSTRAINT uq_contrato_periodo UNIQUE (contrato_id, periodo_quincena);
+
+
+agregar columna de deducciones
