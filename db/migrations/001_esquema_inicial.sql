@@ -82,4 +82,4 @@ CREATE INDEX idx_desprendibles_usuario_periodo ON desprendibles(usuario_id, peri
 -- ALTER TABLE desprendibles ADD CONSTRAINT uq_contrato_periodo UNIQUE (contrato_id, periodo_quincena);
 
 
-agregar columna de deducciones
+-- agregar columna de deducciones
