@@ -1,0 +1,4 @@
+com/nomina/portalnomina/controller/HealthController.class
+com/nomina/portalnomina/model/Usuario.class
+com/nomina/portalnomina/PortalNominaApplication.class
+com/nomina/portalnomina/repository/UsuarioRepository.class
