@@ -1,0 +1,347 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Portal Nómina - Pruebas Corte Vertical (DAS 5.4)",
+		"description": "Suite de pruebas automatizadas end-to-end para el CRUD de Usuarios, Borrado Lógico, Autenticación y Manejo de Errores HTTP (200, 201, 400, 401, 404, 409).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "cedulaPrueba",
+			"value": "99887766",
+			"type": "string"
+		},
+		{
+			"key": "pinPrueba",
+			"value": "4321",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Healthcheck - Conexión API y MariaDB (200 OK)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code es 200 OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Servidor y MariaDB reportan estado UP\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql(\"UP\");",
+							"    pm.expect(jsonData).to.have.property(\"total_usuarios\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/health",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "health"]
+				}
+			}
+		},
+		{
+			"name": "2. Crear Usuario - Camino Feliz + Bcrypt (201 Created)",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"// Genera una cédula aleatoria de 8 dígitos para evitar colisiones al re-ejecutar la colección",
+							"const randomCedula = \"99\" + Math.floor(100000 + Math.random() * 900000);",
+							"pm.collectionVariables.set(\"cedulaPrueba\", randomCedula);"
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code es 201 Created\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test(\"Usuario creado con activo=true y PIN cifrado con bcrypt\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.cedula).to.eql(pm.collectionVariables.get(\"cedulaPrueba\"));",
+							"    pm.expect(jsonData.activo).to.eql(true);",
+							"    pm.expect(jsonData.pinHash).to.not.eql(pm.collectionVariables.get(\"pinPrueba\"));",
+							"    pm.expect(jsonData.pinHash).to.include(\"$2\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"cedula\": \"{{cedulaPrueba}}\",\n  \"nombre\": \"Empleado Prueba Automatizada\",\n  \"pinHash\": \"{{pinPrueba}}\",\n  \"rol\": \"empleado\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/usuarios/crear",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "usuarios", "crear"]
+				}
+			}
+		},
+		{
+			"name": "3. Crear Usuario Duplicado - Error de Integridad (409 Conflict)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code es 409 Conflict por cédula duplicada\", function () {",
+							"    pm.response.to.have.status(409);",
+							"});",
+							"",
+							"pm.test(\"Retorna mensaje de conflicto claro\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property(\"error\");",
+							"    pm.expect(jsonData.error).to.include(\"Conflicto\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"cedula\": \"{{cedulaPrueba}}\",\n  \"nombre\": \"Intento Duplicado\",\n  \"pinHash\": \"1234\",\n  \"rol\": \"empleado\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/usuarios/crear",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "usuarios", "crear"]
+				}
+			}
+		},
+		{
+			"name": "4. Crear Usuario Inválido - Validación Campos (400 Bad Request)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code es 400 Bad Request\", function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test(\"Devuelve error de validación en campo nombre\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property(\"nombre\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"cedula\": \"00011122\",\n  \"nombre\": \"\",\n  \"pinHash\": \"1234\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/usuarios/crear",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "usuarios", "crear"]
+				}
+			}
+		},
+		{
+			"name": "5. Login Exitoso - Autenticación Cédula + PIN (200 OK)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code es 200 OK en autenticación válida\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Retorna datos del empleado autenticado\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.mensaje).to.eql(\"Autenticación exitosa\");",
+							"    pm.expect(jsonData.cedula).to.eql(pm.collectionVariables.get(\"cedulaPrueba\"));",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"cedula\": \"{{cedulaPrueba}}\",\n  \"pin\": \"{{pinPrueba}}\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/usuarios/login",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "usuarios", "login"]
+				}
+			}
+		},
+		{
+			"name": "6. Login Fallido - Atributo Seguridad AC-01 (401 Unauthorized)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code es 401 Unauthorized ante PIN incorrecto\", function () {",
+							"    pm.response.to.have.status(401);",
+							"});",
+							"",
+							"pm.test(\"Mensaje rechaza credenciales inválidas\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property(\"error\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"cedula\": \"{{cedulaPrueba}}\",\n  \"pin\": \"0000\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/usuarios/login",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "usuarios", "login"]
+				}
+			}
+		},
+		{
+			"name": "7. Actualizar Usuario Parcial - PATCH (200 OK)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code es 200 OK al actualizar parcialmente\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Nombre y rol actualizados correctamente\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.nombre).to.eql(\"Empleado Actualizado Test\");",
+							"    pm.expect(jsonData.rol).to.eql(\"admin\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PATCH",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"nombre\": \"Empleado Actualizado Test\",\n  \"rol\": \"admin\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/usuarios/actualizar/{{cedulaPrueba}}",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "usuarios", "actualizar", "{{cedulaPrueba}}"]
+				}
+			}
+		},
+		{
+			"name": "8. Eliminar Lógico (200) y Verificar Ocultamiento (404)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code es 200 OK en borrado lógico\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Confirma mensaje de inhabilitación lógica\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.mensaje).to.include(\"borrado lógico\");",
+							"});",
+							"",
+							"// Sub-petición automática para verificar que GET /consultar ahora responde 404 Not Found",
+							"const urlConsulta = pm.variables.replaceIn(\"{{baseUrl}}/api/usuarios/consultar/{{cedulaPrueba}}\");",
+							"pm.sendRequest(urlConsulta, function (err, res) {",
+							"    pm.test(\"Usuario eliminado lógicamente retorna 404 al consultarlo\", function () {",
+							"        pm.expect(res.code).to.eql(404);",
+							"    });",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/usuarios/eliminar/{{cedulaPrueba}}",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "usuarios", "eliminar", "{{cedulaPrueba}}"]
+				}
+			}
+		}
+	]
+}
