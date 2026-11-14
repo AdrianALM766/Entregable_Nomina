@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.ConstraintViolationException;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,5 +75,38 @@ public class UsuarioController {
             error.put("error", e.getMessage());
             return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
         }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody Map<String, String> credenciales) {
+        try {
+            String cedula = credenciales.get("cedula");
+            String pin = credenciales.get("pin");
+            Usuario usuario = usuarioService.autenticarUsuario(cedula, pin);
+
+            Map<String, Object> respuesta = new HashMap<>();
+            respuesta.put("mensaje", "Autenticación exitosa");
+            respuesta.put("cedula", usuario.getCedula());
+            respuesta.put("nombre", usuario.getNombre());
+            respuesta.put("rol", usuario.getRol());
+            return new ResponseEntity<>(respuesta, HttpStatus.OK);
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        } catch (SecurityException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+        }
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity manejarConstraintViolation(ConstraintViolationException ex) {
+        Map<String, String> errores = new HashMap<>();
+        ex.getConstraintViolations().forEach(violation ->
+                errores.put(violation.getPropertyPath().toString(), violation.getMessage())
+        );
+        return new ResponseEntity<>(errores, HttpStatus.BAD_REQUEST);
     }
 }

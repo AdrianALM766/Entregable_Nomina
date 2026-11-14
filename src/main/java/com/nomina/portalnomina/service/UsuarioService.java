@@ -3,6 +3,7 @@ package com.nomina.portalnomina.service;
 import com.nomina.portalnomina.model.Usuario;
 import com.nomina.portalnomina.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,55 +15,84 @@ public class UsuarioService {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
+    private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
     public Usuario registrarUsuario(Usuario usuario) {
         usuario.setActivo(true);
         if (usuario.getRol() == null || usuario.getRol().isEmpty()) {
             usuario.setRol("empleado");
         }
+
+        if (usuario.getPinHash() != null && !usuario.getPinHash().isEmpty()) {
+            String pinCifrado = passwordEncoder.encode(usuario.getPinHash());
+            usuario.setPinHash(pinCifrado);
+        }
+
         return usuarioRepository.save(usuario);
     }
 
     public Usuario consultarPorCedula(String cedula) {
         return usuarioRepository.findByCedulaAndActivoTrue(cedula)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con cédula: " + cedula));
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado o inactivo con cédula: " + cedula));
     }
 
-    //metodo que lista los usuarios activos de la bd
     public List<Usuario> listarUsuariosActivos() {
-    return usuarioRepository.findByActivoTrue();
-}
+        return usuarioRepository.findByActivoTrue();
+    }
 
-    // Método para actualización parcial de datos (PATCH)
     public Usuario actualizarUsuarioParcial(String cedula, Map<String, Object> camposAActualizar) {
-        // 1. Buscar el usuario existente
+        if (camposAActualizar == null || camposAActualizar.isEmpty()) {
+            throw new IllegalArgumentException("Debe enviar al menos un campo para actualizar.");
+        }
+
         Usuario usuarioExistente = consultarPorCedula(cedula);
 
-        // 2. Iterar sobre las llaves enviadas y actualizar solo los campos permitidos
         camposAActualizar.forEach((clave, valor) -> {
             switch (clave) {
                 case "nombre":
-                    if (valor != null) usuarioExistente.setNombre((String) valor);
+                    if (valor == null || ((String) valor).trim().isEmpty()) {
+                        throw new IllegalArgumentException("El nombre no puede estar vacío.");
+                    }
+                    usuarioExistente.setNombre((String) valor);
                     break;
                 case "rol":
-                    if (valor != null) usuarioExistente.setRol((String) valor);
+                    if (valor == null || ((String) valor).trim().isEmpty()) {
+                        throw new IllegalArgumentException("El rol no puede estar vacío.");
+                    }
+                    usuarioExistente.setRol((String) valor);
                     break;
                 case "pinHash":
-                    if (valor != null) usuarioExistente.setPinHash((String) valor);
+                    if (valor == null || ((String) valor).trim().isEmpty()) {
+                        throw new IllegalArgumentException("El PIN no puede estar vacío.");
+                    }
+                    usuarioExistente.setPinHash(passwordEncoder.encode((String) valor));
                     break;
-                // Ignorar cedula, id o createdAt para proteger la integridad del registro
                 default:
                     break;
             }
         });
 
-        // 3. Guardar los cambios en MariaDB
         return usuarioRepository.save(usuarioExistente);
     }
 
-    // Nuevo método para Borrado Lógico (DELETE)
     public void eliminarUsuarioLogico(String cedula) {
         Usuario usuario = consultarPorCedula(cedula);
-        usuario.setActivo(false); // Desactivar el registro en lugar de borrar la fila física
+        usuario.setActivo(false);
         usuarioRepository.save(usuario);
+    }
+
+    public Usuario autenticarUsuario(String cedula, String pinPlano) {
+        if (cedula == null || cedula.trim().isEmpty() || pinPlano == null || pinPlano.trim().isEmpty()) {
+            throw new IllegalArgumentException("Debe ingresar cédula y PIN.");
+        }
+
+        Usuario usuario = usuarioRepository.findByCedulaAndActivoTrue(cedula)
+                .orElseThrow(() -> new SecurityException("Credenciales inválidas o usuario inactivo."));
+
+        if (!passwordEncoder.matches(pinPlano, usuario.getPinHash())) {
+            throw new SecurityException("Credenciales inválidas.");
+        }
+
+        return usuario;
     }
 }
